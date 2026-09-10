@@ -1,0 +1,13 @@
+# Pastas e arquivos que não devem ir para dentro da imagem Docker
+node_modules
+npm-debug.log
+Dockerfile
+docker-compose*.yml
+.git
+.gitignore
+.dockerignore
+terraform/
+monitoring/
+README.md
+dist/
+coverage/
