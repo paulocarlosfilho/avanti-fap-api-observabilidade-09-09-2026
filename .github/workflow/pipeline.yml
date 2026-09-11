@@ -1,0 +1,158 @@
+name: DevSecOps Pipeline - API Agendamento Consultas
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+  IMAGE_NAME: api-agendamento-consultas
+
+jobs:
+
+  # GATE 1 - Protecao de segredos (roda antes de qualquer coisa)
+  secrets-scan:
+    name: Gitleaks - Scan de segredos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Rodar Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Se encontrar chave/senha/token no diff, o job falha e bloqueia o pipeline aqui.
+
+  # Build e testes (so roda se nao houver segredo exposto)
+  build-and-test:
+    name: Build + Testes (Jest)
+    needs: secrets-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Build (tsc)
+        run: npm run build
+      - name: Rodar testes com cobertura
+        run: npm run test:coverage
+      - name: Upload relatorio de cobertura
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+
+  # GATE 2 - Analise estatica de codigo (SAST)
+  sast:
+    name: Semgrep - SAST
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rodar Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/ci
+            p/typescript
+            p/owasp-top-ten
+        # Falha (exit code != 0) se encontrar findings ERROR. Bloqueia antes do build da imagem.
+
+  # Build da imagem Docker + GATE 3 (analise de imagem)
+  docker-build-and-scan:
+    name: Docker Build + Trivy
+    needs: sast
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build da imagem (nao publica ainda)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+      - name: Rodar Trivy na imagem
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.IMAGE_NAME }}:${{ github.sha }}'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          format: 'table'
+        # exit-code 1 = falha o job se achar CVE critica/alta. Imagem so segue se passar aqui.
+      - name: Login no registry
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publicar imagem no registry
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  # Deploy em staging (so na main, apos imagem aprovada)
+  deploy-staging:
+    name: Deploy em Staging
+    needs: docker-build-and-scan
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Deploy (placeholder)
+        run: echo "Ajustar aqui o deploy real: ssh, kubectl, docker-compose up, etc."
+      # Sugestao: expor a URL de staging como output/env para o job de DAST usar.
+
+  # GATE 4 - Analise dinamica (DAST) contra o ambiente de staging
+  dast:
+    name: OWASP ZAP - DAST
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rodar ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'https://staging.exemplo.com'
+          fail_action: true
+        # fail_action: true bloqueia a promocao para producao se achar vulnerabilidade.
+
+  # Deploy final em producao (so depois de passar por TODOS os gates acima)
+  deploy-production:
+    name: Deploy em Producao
+    needs: dast
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy (placeholder)
+        run: echo "Ajustar aqui o deploy real de producao."
+
+  # OPCIONAL - so ativar se for criar uma pasta /terraform com IaC
+  # terraform-plan:
+  #   name: Terraform Plan + Checkov
+  #   needs: secrets-scan
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: hashicorp/setup-terraform@v3
+  #     - run: terraform -chdir=terraform init
+  #     - run: terraform -chdir=terraform plan -out=tfplan
+  #     - name: Checkov
+  #       uses: bridgecrewio/checkov-action@master
+  #       with:
+  #         directory: terraform/
+  #       # Bloqueia o apply se achar misconfiguration (ex: bucket publico, SG aberto).
