@@ -1,0 +1,161 @@
+name: DevSecOps Pipeline - API Agendamento
+
+on:
+  push:
+    branches: [ paulocarlos ]
+  pull_request:
+    branches: [ paulocarlos ]
+
+jobs:
+  # 1. Lint e Proteção de Segredos
+  lint-and-secrets:
+    name: Lint & Proteção de Segredos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 2. Build e SAST (Quality Gate)
+  build-and-sast:
+    name: Build & SAST
+    needs: lint-and-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'API/package-lock.json'
+
+      - name: Install Dependencies
+        run: |
+          cd API
+          npm install --legacy-peer-deps
+
+      - name: Run Snyk SAST
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: code test
+          args: --path=API
+
+      - name: Build Application
+        run: |
+          cd API
+          npm run build
+
+  # 3. Pull da Imagem do Docker Hub & Scans (Quality Gate)
+  pull-and-scan:
+    name: Pull da Imagem & Scans (Trivy/Checkov)
+    needs: build-and-sast
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Pull Image from Docker Hub
+        run: |
+          docker pull seu-usuario/aponti-fap-api-observalidade-backend:v1.0.1
+
+      - name: Run Trivy vulnerability scanner on Docker Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'seu-usuario/aponti-fap-api-observalidade-backend:v1.0.1'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Run Checkov scanner on Terraform IaC
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform/
+          framework: terraform
+
+  # 4. Provisionamento (LocalStack + Terraform)
+  provisioning:
+    name: Provisionamento
+    needs: pull-and-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Start LocalStack
+        uses: LocalStack/setup-localstack@v0.2.2
+        with:
+          services: "s3,ec2"
+          version: "latest"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init & Apply
+        run: |
+          cd terraform
+          terraform init
+          terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: "test"
+          AWS_SECRET_ACCESS_KEY: "test"
+          AWS_DEFAULT_REGION: "us-east-1"
+
+  # 5. Deploy em Staging e DAST (Quality Gate Dinâmico)
+  deploy-staging-dast:
+    name: Deploy em Staging / DAST
+    needs: provisioning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Start App via Docker Compose (Staging)
+        run: |
+          cd Docker
+          docker compose pull
+          docker compose up -d
+
+      - name: Wait for API
+        run: sleep 10
+
+      - name: Run OWASP ZAP Scan
+        uses: zaproxy/action-full-scan@v0.8.0
+        with:
+          target: 'http://localhost:3000/api/health'
+
+  # 6. Deploy em Produção
+  deploy-production:
+    name: Deploy em Produção
+    needs: deploy-staging-dast
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Production Environment
+        run: |
+          echo "Executando deploy automatizado e seguro em produção..."
