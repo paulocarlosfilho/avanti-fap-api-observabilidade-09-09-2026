@@ -49,7 +49,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
           command: test
-          args: --path=API
+          args: --file=API/package.json --path=API
 
       - name: Build Application
         run: |
