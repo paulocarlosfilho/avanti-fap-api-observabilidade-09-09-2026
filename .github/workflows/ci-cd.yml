@@ -124,6 +124,9 @@ jobs:
     name: Deploy em Staging / DAST
     needs: provisioning
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
