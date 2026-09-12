@@ -150,6 +150,7 @@ jobs:
         uses: zaproxy/action-full-scan@v0.8.0
         with:
           target: 'http://localhost:3000/api/health'
+          artifact_name: 'zap-scan-report'
 
   # 6. Deploy em Produção
   deploy-production:
