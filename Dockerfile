@@ -17,14 +17,20 @@ COPY src ./src
 
 RUN npm run build
 
-# ---------- Estagio 3: runtime (distroless, sem shell/pacotes extras) ----------
-FROM gcr.io/distroless/nodejs20-debian12:nonroot AS runtime
+# ---------- Estagio 3: runtime (alpine atualizado, sem gcr.io) ----------
+FROM node:20-alpine AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Atualiza os pacotes do sistema operacional para corrigir CVEs conhecidas da imagem base
+RUN apk update && apk upgrade --no-cache
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
+# Roda como usuario nao-root (a imagem alpine ja tem o usuario "node" criado)
+USER node
+
 EXPOSE 3000
-CMD ["dist/server.js"]
+CMD ["node", "dist/server.js"]
