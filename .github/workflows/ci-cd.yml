@@ -104,7 +104,7 @@ jobs:
           services: "s3,ec2"
           version: "latest"
         env:
-          LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT: "1"
+          LOCALSTACK_AUTH_TOKEN: ${{ secrets.LOCALSTACK_AUTH_TOKEN }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
