@@ -103,6 +103,8 @@ jobs:
         with:
           services: "s3,ec2"
           version: "latest"
+        env:
+          LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT: "1"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
