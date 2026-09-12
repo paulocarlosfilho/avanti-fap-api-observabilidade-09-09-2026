@@ -18,8 +18,8 @@ provider "aws" {
   skip_requesting_account_id  = true
 
   endpoints {
-    s3  = "http://s3.localhost.localstack.cloud:443"
-    ec2 = "http://localhost:443"
+    s3  = "http://s3.localhost.localstack.cloud:4566"
+    ec2 = "http://localhost:4566"
   }
 }
 

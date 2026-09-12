@@ -44,3 +44,17 @@ Projeto estruturado para a Atividade Prática 1 (Scan Automático & Pipeline Dev
    cd terraform && terraform destroy -auto-approve
    cd .. && docker compose down -v
    ```
+
+## Como ver os arquivos no docker
+
+1. Abrir pasta:
+
+```bash
+ docker exec -it localstack awslocal s3 ls
+```
+
+2. Listar arquivos:
+
+```bash
+docker exec -it localstack awslocal s3 ls s3://app-aponti-fap-observabilidade-s3 --recursive
+```
