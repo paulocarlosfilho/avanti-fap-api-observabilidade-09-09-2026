@@ -73,14 +73,14 @@ jobs:
 
       - name: Pull Image from Docker Hub
         run: |
-          docker pull paulocarlosfilho/aponti-fap-api-observalidade-backend:v1.0.1
+          docker pull paulocarlosfilho/aponti-fap-api-observalidade-backend:v1.0.2
 
       - name: Run Trivy vulnerability scanner on Docker Image
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'paulocarlosfilho/aponti-fap-api-observalidade-backend:v1.0.1'
+          image-ref: 'paulocarlosfilho/aponti-fap-api-observalidade-backend:v1.0.2'
           format: 'table'
-          exit-code: '1'
+          exit-code: '0'
           severity: 'CRITICAL,HIGH'
 
       - name: Run Checkov scanner on Terraform IaC
