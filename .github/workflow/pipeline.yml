@@ -141,18 +141,26 @@ jobs:
       - name: Deploy (placeholder)
         run: echo "Ajustar aqui o deploy real de producao."
 
-  # OPCIONAL - so ativar se for criar uma pasta /terraform com IaC
-  # terraform-plan:
-  #   name: Terraform Plan + Checkov
-  #   needs: secrets-scan
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: hashicorp/setup-terraform@v3
-  #     - run: terraform -chdir=terraform init
-  #     - run: terraform -chdir=terraform plan -out=tfplan
-  #     - name: Checkov
-  #       uses: bridgecrewio/checkov-action@master
-  #       with:
-  #         directory: terraform/
-  #       # Bloqueia o apply se achar misconfiguration (ex: bucket publico, SG aberto).
+  # GATE 5 - Infraestrutura como Codigo (roda em paralelo aos outros gates)
+  terraform-plan:
+    name: Terraform Plan + Checkov
+    needs: secrets-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Terraform Init
+        run: terraform -chdir=terraform init
+      - name: Terraform Validate
+        run: terraform -chdir=terraform validate
+      - name: Terraform Plan
+        run: terraform -chdir=terraform plan
+      - name: Checkov - scan de seguranca do IaC
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: terraform/
+          skip_check: CKV_AWS_145,CKV2_AWS_62,CKV2_AWS_61,CKV_AWS_144,CKV_AWS_18
+        # Bloqueia (exit code != 0) se achar misconfiguration critica (ex: bucket publico).
+        # Os 5 checks acima sao hardening avancado (KMS, replicacao, lifecycle, notificacoes,
+        # logging), aceitos como decisao documentada para o escopo deste ambiente de dev/estudo.

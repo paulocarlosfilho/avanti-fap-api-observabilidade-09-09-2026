@@ -4,3 +4,12 @@ dist/
 *.js.map
 *.d.ts
 !tsconfig.json
+
+# Testes / cobertura
+coverage/
+
+# Terraform
+terraform/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
