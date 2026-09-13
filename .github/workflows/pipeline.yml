@@ -114,7 +114,8 @@ jobs:
     environment: staging
     steps:
       - name: Deploy (placeholder)
-        run: echo "Ajustar aqui o deploy real: ssh, kubectl, docker-compose up, etc."
+        run: |
+          echo "Ajustar aqui o deploy real - ssh, kubectl, docker-compose up, etc."
       # Sugestao: expor a URL de staging como output/env para o job de DAST usar.
 
   # GATE 4 - Analise dinamica (DAST) contra o ambiente de staging
