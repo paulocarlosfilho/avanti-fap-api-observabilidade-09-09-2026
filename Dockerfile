@@ -26,6 +26,14 @@ ENV NODE_ENV=production
 # Atualiza os pacotes do sistema operacional para corrigir CVEs conhecidas da imagem base
 RUN apk update && apk upgrade --no-cache
 
+# Remove o npm/npx/corepack da imagem final: a aplicacao roda so com "node", nao precisa
+# do npm em producao, e isso elimina as CVEs dos pacotes internos do proprio npm (tar, glob, etc)
+RUN rm -rf /usr/local/lib/node_modules/npm \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx \
+    /usr/local/bin/corepack \
+    /usr/local/lib/node_modules/corepack
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
