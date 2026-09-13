@@ -40,8 +40,23 @@ services:
     networks:
       - app-network
 
+  localstack:
+    image: localstack/localstack:3
+    container_name: api-agendamento-localstack
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      SERVICES: s3
+      DEBUG: 0
+    volumes:
+      - localstack-data:/var/lib/localstack
+    networks:
+      - app-network
+
 volumes:
   db-data:
+  localstack-data:
 
 networks:
   app-network:
